@@ -5,6 +5,8 @@ const openedKey = 'birthdayGiftGateOpened';
 const clickCountKey = 'birthdayGiftGateClickCount';
 
 type GiftCountdownGateProps = {
+  serverNowMs: number | null;
+  timeCheckFailed: boolean;
   onUnlocked: () => void;
 };
 
@@ -15,8 +17,8 @@ type RemainingTime = {
   seconds: number;
 };
 
-function getRemainingTime(): RemainingTime {
-  const diff = Math.max(0, unlockAt.getTime() - Date.now());
+function getRemainingTime(nowMs: number): RemainingTime {
+  const diff = Math.max(0, unlockAt.getTime() - nowMs);
   const totalSeconds = Math.floor(diff / 1000);
 
   return {
@@ -27,34 +29,42 @@ function getRemainingTime(): RemainingTime {
   };
 }
 
-function isUnlocked() {
-  return Date.now() >= unlockAt.getTime();
-}
-
-export default function GiftCountdownGate({ onUnlocked }: GiftCountdownGateProps) {
+export default function GiftCountdownGate({
+  serverNowMs,
+  timeCheckFailed,
+  onUnlocked,
+}: GiftCountdownGateProps) {
   const [opened, setOpened] = useState(() => localStorage.getItem(openedKey) === 'true');
   const [clicks, setClicks] = useState(() => Number(localStorage.getItem(clickCountKey) ?? 0));
   const [bursting, setBursting] = useState(false);
-  const [remaining, setRemaining] = useState(getRemainingTime);
+  const [remaining, setRemaining] = useState<RemainingTime | null>(null);
 
   const scale = useMemo(() => 1 + Math.min(clicks, 4) * 0.08, [clicks]);
 
   useEffect(() => {
-    if (isUnlocked()) {
-      onUnlocked();
+    if (serverNowMs === null) {
+      setRemaining(null);
       return undefined;
     }
 
-    const interval = window.setInterval(() => {
-      if (isUnlocked()) {
+    const baselinePerformanceNow = performance.now();
+
+    const updateRemaining = () => {
+      const trustedNow = serverNowMs + (performance.now() - baselinePerformanceNow);
+      if (trustedNow >= unlockAt.getTime()) {
         onUnlocked();
         return;
       }
-      setRemaining(getRemainingTime());
+      setRemaining(getRemainingTime(trustedNow));
+    };
+
+    updateRemaining();
+    const interval = window.setInterval(() => {
+      updateRemaining();
     }, 1000);
 
     return () => window.clearInterval(interval);
-  }, [onUnlocked]);
+  }, [onUnlocked, serverNowMs]);
 
   const handleGiftClick = () => {
     if (opened || bursting) {
@@ -135,12 +145,20 @@ export default function GiftCountdownGate({ onUnlocked }: GiftCountdownGateProps
             </h1>
             <p className="mt-3 text-sm font-semibold text-white/68">22.06.2026 · 21:00</p>
 
-            <div className="mt-8 grid grid-cols-2 gap-3 sm:grid-cols-4">
-              <TimeCard value={remaining.days} label="Gün" />
-              <TimeCard value={remaining.hours} label="Saat" />
-              <TimeCard value={remaining.minutes} label="Dakika" />
-              <TimeCard value={remaining.seconds} label="Saniye" />
-            </div>
+            {remaining ? (
+              <div className="mt-8 grid grid-cols-2 gap-3 sm:grid-cols-4">
+                <TimeCard value={remaining.days} label="Gün" />
+                <TimeCard value={remaining.hours} label="Saat" />
+                <TimeCard value={remaining.minutes} label="Dakika" />
+                <TimeCard value={remaining.seconds} label="Saniye" />
+              </div>
+            ) : (
+              <div className="mt-8 rounded-3xl border border-white/12 bg-ink/45 p-5 text-base leading-7 text-white/74">
+                {timeCheckFailed
+                  ? 'Sürprizin zamanı kontrol ediliyor. Birazdan yeniden dene.'
+                  : 'Sürprizin zamanı kontrol ediliyor.'}
+              </div>
+            )}
 
             <p className="mt-8 text-base leading-7 text-white/74">
               Bazı şeyler tam zamanında güzel. Bu sayfa o gece senin için açılacak.
