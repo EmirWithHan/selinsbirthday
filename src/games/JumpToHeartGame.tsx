@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { createAvatarImage, drawAvatar } from './avatar';
+import GameControls from './GameControls';
+import { createAvatarSprite, drawAvatarSprite } from './avatarSprite';
 
 type GameProps = {
   onComplete: () => void;
@@ -10,7 +11,7 @@ export default function JumpToHeartGame({ onComplete, onLivesChange }: GameProps
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const keys = useRef({ left: false, right: false });
   const completed = useRef(false);
-  const avatar = useMemo(createAvatarImage, []);
+  const avatar = useMemo(() => createAvatarSprite(), []);
   const [gameOver, setGameOver] = useState(false);
   const [runId, setRunId] = useState(0);
 
@@ -150,7 +151,7 @@ export default function JumpToHeartGame({ onComplete, onLivesChange }: GameProps
       });
 
       drawHeart(targetX, heart.y - cameraY, 32);
-      drawAvatar(context, avatar, player.x, player.y - cameraY, player.r);
+      drawAvatarSprite(context, avatar, player.x, player.y - cameraY, player.r);
 
       if (!completed.current && livesRef.current > 0) raf = requestAnimationFrame(tick);
     };
@@ -179,11 +180,13 @@ export default function JumpToHeartGame({ onComplete, onLivesChange }: GameProps
   }, [avatar, onComplete, onLivesChange, runId]);
 
   return (
-    <div className="relative flex h-full flex-col">
+    <div className="game-interaction relative flex h-full flex-col" onContextMenu={(event) => event.preventDefault()}>
       <canvas
         ref={canvasRef}
         className="min-h-0 flex-1 touch-none rounded-2xl border border-white/12 bg-midnight"
         onPointerDown={(event) => {
+          event.preventDefault();
+          event.currentTarget.setPointerCapture(event.pointerId);
           const rect = event.currentTarget.getBoundingClientRect();
           keys.current.left = event.clientX - rect.left < rect.width / 2;
           keys.current.right = !keys.current.left;
@@ -195,6 +198,17 @@ export default function JumpToHeartGame({ onComplete, onLivesChange }: GameProps
         onPointerCancel={() => {
           keys.current.left = false;
           keys.current.right = false;
+        }}
+        onLostPointerCapture={() => {
+          keys.current.left = false;
+          keys.current.right = false;
+        }}
+      />
+      <GameControls
+        directions={['left', 'right']}
+        onChange={(direction, pressed) => {
+          if (direction === 'left') keys.current.left = pressed;
+          if (direction === 'right') keys.current.right = pressed;
         }}
       />
       {gameOver ? (

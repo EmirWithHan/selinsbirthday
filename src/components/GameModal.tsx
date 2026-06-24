@@ -3,6 +3,7 @@ import CakePlatformGame from '../games/CakePlatformGame';
 import GiftFlightGame from '../games/GiftFlightGame';
 import type { GameId } from '../games/gameProgress';
 import JumpToHeartGame from '../games/JumpToHeartGame';
+import SlingshotHeartGame from '../games/SlingshotHeartGame';
 
 type GameModalProps = {
   id: GameId;
@@ -83,7 +84,12 @@ export default function GameModal({
   }, [onClose]);
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col bg-ink p-3 text-white sm:p-5" role="dialog" aria-modal="true">
+    <div
+      className="game-interaction fixed inset-0 z-50 flex flex-col bg-ink p-3 text-white sm:p-5"
+      role="dialog"
+      aria-modal="true"
+      onContextMenu={(event) => event.preventDefault()}
+    >
       <div className="mb-3 flex items-center justify-between gap-3 rounded-3xl border border-white/12 bg-white/8 px-4 py-3 backdrop-blur">
         <div>
           <p className="text-xs font-bold uppercase tracking-[0.22em] text-roseglow">Oyun</p>
@@ -108,6 +114,7 @@ export default function GameModal({
         {id === 'jump' ? <JumpToHeartGame onComplete={onComplete} onLivesChange={setLives} /> : null}
         {id === 'cake' ? <CakePlatformGame onComplete={onComplete} onLivesChange={setLives} /> : null}
         {id === 'gift' ? <GiftFlightGame onComplete={onComplete} onLivesChange={setLives} /> : null}
+        {id === 'slingshot' ? <SlingshotHeartGame onComplete={onComplete} onLivesChange={setLives} /> : null}
       </div>
       {completed ? (
         <div className="mt-3 rounded-3xl border border-roseglow/30 bg-roseglow/12 p-4 text-sm font-semibold leading-6 text-champagne">

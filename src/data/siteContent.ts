@@ -19,7 +19,7 @@ export const siteContent = {
     title: 'Küçük Sürpriz Oyunları',
     text: 'Her oyun bir sonraki sürprizin kapısını açar.',
     finalMessage:
-      'Üç sürprizi de tamamladın. Bugün senin günün, ama benim en güzel şansım sensin. İyi ki doğdun sevgilim.',
+      'Dört sürprizi de tamamladın. Bugün senin günün, ama benim en güzel şansım sensin. İyi ki doğdun sevgilim.',
     items: [
       {
         id: 'jump',
@@ -41,6 +41,12 @@ export const siteContent = {
         description: 'Kalp kapılarının arasından süzül ve hediyeye ulaş.',
         success:
           'Hediyeyi aldın. Ama benim en büyük hediyem sensin.',
+      },
+      {
+        id: 'slingshot',
+        title: 'Kalp Atışı',
+        description: 'Nişan al, bırak ve kalbini tam hedefe gönder.',
+        success: 'Kalbini tam hedefe gönderdin.',
       },
     ],
   },

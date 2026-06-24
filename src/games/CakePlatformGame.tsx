@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { createAvatarImage, drawAvatar } from './avatar';
+import GameControls from './GameControls';
+import { createAvatarSprite, drawAvatarSprite } from './avatarSprite';
 
 type GameProps = {
   onComplete: () => void;
@@ -10,7 +11,7 @@ export default function CakePlatformGame({ onComplete, onLivesChange }: GameProp
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const keys = useRef({ left: false, right: false, jump: false });
   const completed = useRef(false);
-  const avatar = useMemo(createAvatarImage, []);
+  const avatar = useMemo(() => createAvatarSprite(), []);
   const [gameOver, setGameOver] = useState(false);
   const [runId, setRunId] = useState(0);
 
@@ -25,30 +26,32 @@ export default function CakePlatformGame({ onComplete, onLivesChange }: GameProp
     const worldWidth = 28000;
     const livesRef = { current: 3 };
     const player = { x: 45, y: 260, vx: 0, vy: 0, r: 19, grounded: false };
+    let checkpoint = { x: 45, y: 230 };
+    let invulnerableUntil = 0;
     const platforms = [
       { x: 0, y: 330, w: 260, h: 18 },
       ...Array.from({ length: 116 }, (_, index) => {
-        const section = Math.floor(index / 18);
+        const section = Math.floor(index / 39);
         const x = 310 + index * 235 + (index % 5) * 18;
         const yPattern = [318, 292, 252, 304, 268, 326, 236, 286];
         return {
           x,
           y: yPattern[(index + section) % yPattern.length],
-          w: Math.max(88, 176 - section * 9 - (index % 4) * 8),
+          w: Math.max(104, 184 - section * 12 - (index % 4) * 7),
           h: 18,
         };
       }),
     ];
     const obstacles = platforms
-      .filter((platform, index) => index > 0 && index % 2 === 1)
+      .filter((_platform, index) => index > 5 && index % 3 === 0)
       .map((platform, index) => {
-        const section = Math.floor(index / 10);
-        const w = 30 + (index % 4) * 5;
+        const section = Math.floor(index / 13);
+        const w = 22 + (index % 3) * 4;
         return {
-          x: platform.x + Math.max(18, platform.w * (0.46 + (index % 3) * 0.12)) - w / 2,
+          x: platform.x + Math.min(platform.w - w - 16, Math.max(18, platform.w * (0.52 + (index % 2) * 0.14))) - w / 2,
           y: platform.y,
           w,
-          h: 32 + section * 2 + (index % 3) * 5,
+          h: 22 + section * 2 + (index % 3) * 3,
         };
       });
     const cake = { x: worldWidth - 120, y: 190, r: 26 };
@@ -71,16 +74,18 @@ export default function CakePlatformGame({ onComplete, onLivesChange }: GameProp
     };
 
     const reset = () => {
+      if (performance.now() < invulnerableUntil || livesRef.current <= 0) return;
       livesRef.current -= 1;
       onLivesChange(livesRef.current);
       if (livesRef.current <= 0) {
         setGameOver(true);
         return;
       }
-      player.x = 45;
-      player.y = 230;
+      player.x = checkpoint.x;
+      player.y = checkpoint.y;
       player.vx = 0;
       player.vy = 0;
+      invulnerableUntil = performance.now() + 1000;
     };
 
     const drawCake = (x: number, y: number) => {
@@ -156,7 +161,7 @@ export default function CakePlatformGame({ onComplete, onLivesChange }: GameProp
       player.x = Math.max(player.r, Math.min(worldWidth - player.r, player.x));
       player.grounded = false;
 
-      platforms.forEach((platform) => {
+      platforms.forEach((platform, platformIndex) => {
         if (
           player.vy >= 0 &&
           player.x + player.r > platform.x &&
@@ -167,14 +172,20 @@ export default function CakePlatformGame({ onComplete, onLivesChange }: GameProp
           player.y = platform.y - player.r;
           player.vy = 0;
           player.grounded = true;
+          const hasHazard = platformIndex > 5 && platformIndex % 3 === 0;
+          if (!hasHazard && player.x > checkpoint.x + 170) {
+            checkpoint = { x: platform.x + Math.min(32, platform.w / 3), y: platform.y - player.r - 2 };
+          }
         }
       });
 
       obstacles.forEach((obstacle) => {
+        const collisionInset = Math.max(3, obstacle.w * 0.18);
         if (
-          player.x + player.r > obstacle.x &&
-          player.x - player.r < obstacle.x + obstacle.w &&
-          player.y + player.r > obstacle.y - obstacle.h &&
+          performance.now() >= invulnerableUntil &&
+          player.x + player.r > obstacle.x + collisionInset &&
+          player.x - player.r < obstacle.x + obstacle.w - collisionInset &&
+          player.y + player.r > obstacle.y - obstacle.h + 4 &&
           player.y - player.r < obstacle.y
         ) {
           reset();
@@ -198,15 +209,21 @@ export default function CakePlatformGame({ onComplete, onLivesChange }: GameProp
       context.fill();
 
       platforms.forEach((platform) => {
-        drawPlatform(platform.x - cameraX, platform.y, platform.w, platform.h);
+        const screenX = platform.x - cameraX;
+        if (screenX + platform.w < -20 || screenX > width + 20) return;
+        drawPlatform(screenX, platform.y, platform.w, platform.h);
       });
 
       obstacles.forEach((obstacle) => {
-        drawCrystalHazard(obstacle.x - cameraX, obstacle.y, obstacle.w, obstacle.h);
+        const screenX = obstacle.x - cameraX;
+        if (screenX + obstacle.w < -20 || screenX > width + 20) return;
+        drawCrystalHazard(screenX, obstacle.y, obstacle.w, obstacle.h);
       });
 
       drawCake(cake.x - cameraX, cake.y);
-      drawAvatar(context, avatar, player.x - cameraX, player.y, player.r);
+      if (performance.now() >= invulnerableUntil || Math.floor(performance.now() / 100) % 2 === 0) {
+        drawAvatarSprite(context, avatar, player.x - cameraX, player.y, player.r);
+      }
 
       if (!completed.current && livesRef.current > 0) raf = requestAnimationFrame(tick);
     };
@@ -214,7 +231,7 @@ export default function CakePlatformGame({ onComplete, onLivesChange }: GameProp
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'ArrowLeft' || event.key.toLowerCase() === 'a') keys.current.left = true;
       if (event.key === 'ArrowRight' || event.key.toLowerCase() === 'd') keys.current.right = true;
-      if (event.key === ' ' || event.key === 'ArrowUp') {
+      if (event.key === ' ' || event.key === 'ArrowUp' || event.key.toLowerCase() === 'w') {
         event.preventDefault();
         keys.current.jump = true;
       }
@@ -222,7 +239,7 @@ export default function CakePlatformGame({ onComplete, onLivesChange }: GameProp
     const onKeyUp = (event: KeyboardEvent) => {
       if (event.key === 'ArrowLeft' || event.key.toLowerCase() === 'a') keys.current.left = false;
       if (event.key === 'ArrowRight' || event.key.toLowerCase() === 'd') keys.current.right = false;
-      if (event.key === ' ' || event.key === 'ArrowUp') keys.current.jump = false;
+      if (event.key === ' ' || event.key === 'ArrowUp' || event.key.toLowerCase() === 'w') keys.current.jump = false;
     };
 
     resize();
@@ -240,16 +257,17 @@ export default function CakePlatformGame({ onComplete, onLivesChange }: GameProp
   }, [avatar, onComplete, onLivesChange, runId]);
 
   return (
-    <div className="relative flex h-full flex-col">
+    <div className="game-interaction relative flex h-full flex-col" onContextMenu={(event) => event.preventDefault()}>
       <canvas
         ref={canvasRef}
         className="min-h-0 flex-1 touch-none rounded-2xl border border-white/12 bg-midnight"
       />
-      <div className="mt-3 grid grid-cols-3 gap-3 sm:hidden">
-        <Control label="Sol" onDown={() => (keys.current.left = true)} onUp={() => (keys.current.left = false)} />
-        <Control label="Zıpla" onDown={() => (keys.current.jump = true)} onUp={() => (keys.current.jump = false)} />
-        <Control label="Sağ" onDown={() => (keys.current.right = true)} onUp={() => (keys.current.right = false)} />
-      </div>
+      <GameControls
+        directions={['left', 'jump', 'right']}
+        onChange={(direction, pressed) => {
+          keys.current[direction] = pressed;
+        }}
+      />
       {gameOver ? (
         <div className="absolute inset-x-4 bottom-24 rounded-3xl border border-roseglow/30 bg-ink/88 p-4 text-center shadow-glass backdrop-blur sm:bottom-8">
           <p className="font-display text-2xl text-champagne">Tekrar deneyelim</p>
@@ -266,23 +284,5 @@ export default function CakePlatformGame({ onComplete, onLivesChange }: GameProp
         </div>
       ) : null}
     </div>
-  );
-}
-
-function Control({ label, onDown, onUp }: { label: string; onDown: () => void; onUp: () => void }) {
-  return (
-    <button
-      type="button"
-      className="min-h-12 rounded-2xl border border-white/15 bg-white/12 text-sm font-bold text-white"
-      onPointerDown={(event) => {
-        event.preventDefault();
-        onDown();
-      }}
-      onPointerUp={onUp}
-      onPointerCancel={onUp}
-      onPointerLeave={onUp}
-    >
-      {label}
-    </button>
   );
 }
